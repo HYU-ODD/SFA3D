@@ -119,8 +119,22 @@ def draw_box_3d(image, corners, color=(0, 0, 255)):
 
     return image
 
+def draw_box_2d(image, corners, color=(0, 0, 255)):
+    min_x, min_y, max_x, max_y = 10000, 10000, 0, 0
+    for i in range(8):
+        min_x = min(min_x, corners[i][0])
+        min_y = min(min_y, corners[i][1])
+        max_x = max(max_x, corners[i][0])
+        max_y = max(max_y, corners[i][1])
+    
+    cv2.line(image, (min_x, min_y), (min_x, max_y), color, 1, lineType=cv2.LINE_AA)
+    cv2.line(image, (min_x, max_y), (max_x, max_y), color, 1, lineType=cv2.LINE_AA)
+    cv2.line(image, (max_x, max_y), (max_x, min_y), color, 1, lineType=cv2.LINE_AA)
+    cv2.line(image, (min_x, max_y), (min_x, min_y), color, 1, lineType=cv2.LINE_AA)
+    
+    return image
 
-def show_rgb_image_with_boxes(img, labels, calib):
+def show_rgb_image_with_boxes(img, labels, calib, bbox2d):
     corners = []
     for box_idx, label in enumerate(labels):
         cls_id, location, dim, ry = label[0], label[1:4], label[4:7], label[7]
@@ -130,7 +144,10 @@ def show_rgb_image_with_boxes(img, labels, calib):
             continue
         corners_3d = compute_box_3d(dim, location, ry)
         corners_2d = project_to_image(corners_3d, calib.P2)
-        img = draw_box_3d(img, corners_2d, color=cnf.colors[int(cls_id)])
+        if not bbox2d:
+            img = draw_box_3d(img, corners_2d, color=cnf.colors[int(cls_id)])
+        else:
+            img = draw_box_2d(img, corners_2d, color=cnf.colors[int(cls_id)])
         corners.append((cls_id, corners_2d))
     return img, corners
 

@@ -69,6 +69,7 @@ def parse_test_configs():
     parser.add_argument('--output-width', type=int, default=608,
                         help='the width of showing output, the height maybe vary')
     parser.add_argument('--no_display', action='store_true')
+    parser.add_argument('--bbox2d', action='store_true')
 
     configs = edict(vars(parser.parse_args()))
     configs.pin_memory = True
@@ -103,8 +104,9 @@ def parse_test_configs():
     configs.dataset_dir = os.path.join(configs.root_dir, 'dataset', 'kitti')
 
     configs.results_dir = os.path.join(configs.root_dir, 'results', configs.saved_fn)
+    configs.label_dir = os.path.join(configs.results_dir, 'predictions')
     make_folder(configs.results_dir)
-    make_folder(configs.results_dir + '/predictions')
+    make_folder(configs.label_dir)
 
     return configs
 
@@ -158,11 +160,23 @@ if __name__ == '__main__':
             kitti_dets = convert_det_to_real_values(detections)
             if len(kitti_dets) > 0:
                 kitti_dets[:, 1:] = lidar_to_camera_box(kitti_dets[:, 1:], calib.V2C, calib.R0, calib.P2)
-                img_bgr, corners = show_rgb_image_with_boxes(img_bgr, kitti_dets, calib)
+                img_bgr, corners = show_rgb_image_with_boxes(img_bgr, kitti_dets, calib, configs.bbox2d)
                 
+                # Make predictions txt file
                 txt_fn = os.path.basename(metadatas['img_path'][0])[:-4]
-                predictions = open(os.path.join(configs.results_dir+'/predictions', '{}.txt'.format(txt_fn)), 'w')
+                predictions = open(os.path.join(configs.label_dir, '{}.txt'.format(txt_fn)), 'w')
                 
+                '''
+                    corners: class_id and (8,3) array of vertices for the 3d box in following order:
+                      1 -------- 0
+                     /|         /|
+                    2 -------- 3 .
+                    | |        | |
+                    . 5 -------- 4
+                    |/         |/
+                    6 -------- 7
+                '''
+
                 for obj in corners:
                     cls_id, coords = obj
                     predictions.write(str(cls_id))
