@@ -68,6 +68,7 @@ def parse_test_configs():
                         help='the video filename if the output format is video')
     parser.add_argument('--output-width', type=int, default=608,
                         help='the width of showing output, the height maybe vary')
+    parser.add_argument('--no_display', action='store_true')
 
     configs = edict(vars(parser.parse_args()))
     configs.pin_memory = True
@@ -101,9 +102,9 @@ def parse_test_configs():
     configs.root_dir = '../'
     configs.dataset_dir = os.path.join(configs.root_dir, 'dataset', 'kitti')
 
-    if configs.save_test_output:
-        configs.results_dir = os.path.join(configs.root_dir, 'results', configs.saved_fn)
-        make_folder(configs.results_dir)
+    configs.results_dir = os.path.join(configs.root_dir, 'results', configs.saved_fn)
+    make_folder(configs.results_dir)
+    make_folder(configs.results_dir + '/predictions')
 
     return configs
 
@@ -157,7 +158,17 @@ if __name__ == '__main__':
             kitti_dets = convert_det_to_real_values(detections)
             if len(kitti_dets) > 0:
                 kitti_dets[:, 1:] = lidar_to_camera_box(kitti_dets[:, 1:], calib.V2C, calib.R0, calib.P2)
-                img_bgr = show_rgb_image_with_boxes(img_bgr, kitti_dets, calib)
+                img_bgr, corners = show_rgb_image_with_boxes(img_bgr, kitti_dets, calib)
+                
+                txt_fn = os.path.basename(metadatas['img_path'][0])[:-4]
+                predictions = open(os.path.join(configs.results_dir+'/predictions', '{}.txt'.format(txt_fn)), 'w')
+                
+                for obj in corners:
+                    cls_id, coords = obj
+                    predictions.write(str(cls_id))
+                    for i in range(8):
+                        predictions.write(' ' + str(coords[i][0]) + ' ' + str(coords[i][1]))
+                    predictions.write('\n')
 
             out_img = merge_rgb_to_bev(img_bgr, bev_map, output_width=configs.output_width)
 
@@ -173,16 +184,15 @@ if __name__ == '__main__':
                         fourcc = cv2.VideoWriter_fourcc(*'MJPG')
                         out_cap = cv2.VideoWriter(
                             os.path.join(configs.results_dir, '{}.avi'.format(configs.output_video_fn)),
-                            fourcc, 30, (out_cap_w, out_cap_h))
-
+                            fourcc, 6, (out_cap_w, out_cap_h)) # speed 
                     out_cap.write(out_img)
                 else:
                     raise TypeError
-
-            cv2.imshow('test-img', out_img)
-            print('\n[INFO] Press n to see the next sample >>> Press Esc to quit...\n')
-            if cv2.waitKey(0) & 0xFF == 27:
-                break
+            if not configs.no_display:
+                cv2.imshow('test-img', out_img)
+                print('\n[INFO] Press n to see the next sample >>> Press Esc to quit...\n')
+                if cv2.waitKey(0) & 0xFF == 27:
+                    break
     if out_cap:
         out_cap.release()
-    cv2.destroyAllWindows()
+    #cv2.destroyAllWindows()
